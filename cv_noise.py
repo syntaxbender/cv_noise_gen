@@ -53,7 +53,10 @@ def generate_circle(height,width,min_blur_x, max_blur_x, min_blur_y, max_blur_y,
 def open_image(image):
     image = cv2.imread(image, cv2.IMREAD_UNCHANGED).astype(np.float32) / 255
     return image
-
+def normalize_array(arr, new_min, new_max):
+    arr_min = np.min(arr)
+    arr_max = np.max(arr)
+    return new_min + (arr - arr_min) * (new_max - new_min) / (arr_max - arr_min)
   
 def apply_perlin_to_alpha(image, scale=50, min_alpha=0.6, max_alpha=1.0):
     """Perlin Noise ile alpha kanalında bloklu (düzensiz) şeffaflık oluşturur."""
@@ -65,8 +68,12 @@ def apply_perlin_to_alpha(image, scale=50, min_alpha=0.6, max_alpha=1.0):
     
     # Alpha kanalını al
     img_alpha_channel = image[:, :, 3]  # 0-1 aralığında normalize et
+    cv2.imwrite("xx.jpg", (img_alpha_channel*255).astype(np.uint8))
+    
     # Sadece alpha > 0 olan yerlere noise uygula (arka plan tamamen saydam olan yerlere etki etmez)
-    mask = img_alpha_channel > 0  # Sadece görünür pikseller için işlem yap
+    mask = img_alpha_channel > 0.5  # Sadece görünür pikseller için işlem yap
+    cv2.imwrite("xxd.jpg", (mask*255).astype(np.uint8))
+    
     #alpha_variation = (noise_map / 255) * test  # Alpha değişkenliği oluştur
     alpha_variation = noise_map  # Alpha değişkenliği oluştur
     # alpha_variation = np.where(noise_map < 0.3, 0.0, alpha_variation)
@@ -76,18 +83,22 @@ def apply_perlin_to_alpha(image, scale=50, min_alpha=0.6, max_alpha=1.0):
     #alpha_variation = alpha_variation > 1;
     
     circle = circles_layer(height=h,width=w,min_blur_x=min_blur_x,max_blur_x=max_blur_x,min_blur_y=min_blur_y,max_blur_y=max_blur_y,min_radius=min_radius,max_radius=max_radius)
-    cv2.imwrite("xx.jpg", (circle*255).astype(np.uint8))
     
     circle_mask = circle > 0  # Sadece görünür pikseller için işlem yap
     circle_mask2 = circle <= 0  # Sadece görünür pikseller için işlem yap
     np.savetxt("dosya.txt", alpha_variation, fmt="%.6f")  # 6 basamak hassasiyetle kaydeder
-    np.savetxt("dosya2.txt", mask, fmt="%.6f")  # 6 basamak hassasiyetle kaydeder
     
     
     
     # np.savetxt("dosya.txt", noise_map, fmt="%.6f")  # 6 basamak hassasiyetle kaydeder
     # np.savetxt("dosya2.txt", alpha_variation, fmt="%.6f")  # 6 basamak hassasiyetle kaydeder
     alpha_variation[circle_mask] = (circle[circle_mask] * alpha_variation[circle_mask])
+    alpha_variation = normalize_array(alpha_variation*0.001,0,1)
+    
+    # np.savetxt("dosya.txt", alpha_variation, fmt="%.6f")  # 6 basamak hassasiyetle kaydeder
+    
+    # np.savetxt("dosya2.txt", alpha_variation, fmt="%.6f")  # 6 basamak hassasiyetle kaydeder
+    
     alpha_variation[circle_mask2] = 0
     img_alpha_channel[mask] = 1-(img_alpha_channel[mask] * alpha_variation[mask])
 
@@ -118,7 +129,8 @@ def circles_layer(height,width,min_blur_x, max_blur_x, min_blur_y, max_blur_y,mi
 watermark = open_image("../image2.png")
 
 # Alpha kanalına sadece Perlin Noise uygula
-watermark_alpha_noise = (apply_perlin_to_alpha(watermark, scale=80)*255).astype(np.uint8)
+
+watermark_alpha_noise = cv2.GaussianBlur((apply_perlin_to_alpha(watermark, scale=80)*255).astype(np.uint8), (1, 1), 0)
 
 # Sonucu kaydet
 cv2.imwrite("watermark_with_perlin_alpha.png", watermark_alpha_noise)
